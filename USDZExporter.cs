@@ -1,10 +1,11 @@
 ﻿
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using System.IO.Compression;
 using System.Linq;
-using System.Numerics;
+using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using SkiaSharp;
 using THREE;
 
@@ -14,22 +15,7 @@ namespace THREEToUsdz
 
     public class USDZExporter
     {
-        public void Parse(Scene scene, Action onDone, Action onError, Dictionary<string, object> options)
-        {
-            ParseAsync(scene, options).ContinueWith(t =>
-            {
-                if (t.IsFaulted)
-                {
-                    onError();
-                }
-                else
-                {
-                    onDone();
-                }
-            });
-        }
-
-        public async Task ParseAsync(Scene scene, Dictionary<string, object>? options = null)
+        public static async Task<byte[]> ParseAsync(Scene scene, Dictionary<string, object>? options = null)
         {
             options = options ?? new Dictionary<string, object>
             {
@@ -61,9 +47,8 @@ namespace THREEToUsdz
                 {
                     var geometry = mesh.Geometry;
                     var material = mesh.Material;
-
-                    if (material is MeshStandardMaterial standardMaterial)
-                    {
+                   //  if (material is MeshStandardMaterial || material is MeshLambertMaterial)
+                    //{
                         var geometryFileName = "geometries/Geometry_" + geometry.Id + ".usda";
 
                         if (!files.ContainsKey(geometryFileName))
@@ -78,12 +63,12 @@ namespace THREEToUsdz
                         }
 
                         output += BuildXform(object3D, geometry, material);
-                    }
-                    else
-                    {
-                        Console.WriteLine("THREE.USDZExporter: Unsupported material type (USDZ only supports MeshStandardMaterial)");
-                        Console.WriteLine(object3D);
-                    }
+                   // }
+                   // else
+                   // {
+                    //    Console.WriteLine("THREE.USDZExporter: Unsupported material type (USDZ only supports MeshStandardMaterial)");
+                   //     Console.WriteLine(object3D);
+                    //}
                 }
                 // else if (object3D is Camera camera)
                 // {
@@ -93,8 +78,8 @@ namespace THREEToUsdz
 
             output += BuildSceneEnd();
 
-            output += BuildMaterials(materials, textures, (bool)options["quickLookCompatible"]);
-
+            output += BuildMaterials(materials, textures, options?.TryGetValue("quickLookCompatible", out var quickLookCompatible) ?? false ? (bool)quickLookCompatible:false);
+            output += "\n}";
             files[modelFileName] = StrToU8(output);
             output = null;
 
@@ -127,54 +112,69 @@ namespace THREEToUsdz
                     var padLength = 64 - offsetMod64;
                     var padding = new byte[padLength];
 
-                    files[filename] = new object[] { file, new { extra = new { 12345 = padding } } };
+
+                    var newFile = new byte[file.Length + padLength];
+                    Array.Copy(file, newFile, file.Length);
+                    files[filename] = newFile;
                 }
 
                 offset = file.Length;
             }
 
-            var result = ZipSync(files, new { level = 0 });
+            var result = ZipSync(files, 0);
             return result;
         }
 
         private static byte[] StrToU8(string str)
         {
-            // Implement the conversion logic here
-            return null;
+            return Encoding.UTF8.GetBytes(str);
         }
 
-        private static byte[] ZipSync(Dictionary<string, byte[]> files, object options)
+        private static byte[] ZipSync(Dictionary<string, byte[]> files, int level)
         {
-            // Implement the zip logic here
-            return null;
+           using  var ms=new MemoryStream();
+            using var archive = new ZipArchive(ms,ZipArchiveMode.Create);
+
+            foreach (var item in files)
+            {
+
+                 var entry =archive.CreateEntry(item.Key);
+               using var entryStream=entry.Open();
+
+                entryStream.Write(item.Value);
+
+
+            }
+
+            return ms.ToArray();
         }
 
-        public string BuildHeader()
+        public static string BuildHeader()
         {
             return "#usda 1.0\n(\n\tcustomLayerData = {\n\t\tstring creator = \"Three.js USDZExporter\"\n\t}\n\tdefaultPrim = \"Root\"\n\tmetersPerUnit = 1\n\tupAxis = \"Y\"\n)\n\n";
         }
 
-        public string BuildSceneStart(Dictionary<string, object>? options)
+        public static string BuildSceneStart(Dictionary<string, object>? options)
         {
-            bool includeAnchoringProperties = options.TryGetValue("includeAnchoringProperties", out var t1) ? (bool)t1 : false;
+            bool includeAnchoringProperties = options?.TryGetValue("includeAnchoringProperties", out var t1)??false ? (bool)t1 : false;
 
-            string anchoringType = options.TryGetValue("includeAnchoringProperties", out var t2) ? (string)t2 : "";
-            string planeAnchoringAlignment = options.TryGetValue("includeAnchoringProperties", out var t3) ? (string)t3 : "";
-            string alignment = includeAnchoringProperties ? $"\n\t\ttoken preliminary:anchoring:type = \"{anchoringType}\"\n\t\ttoken preliminary:planeAnchoring:alignment = \"{planeAnchoringAlignment}\"\n" : "";
+            string anchoringType = "plane";// options?.anchoring?.type.TryGetValue("includeAnchoringProperties", out var t2) ?? false ? (string)t2 : "";
+            string planeAnchoringAlignment = "horizontal";// options?.TryGetValue("includeAnchoringProperties", out var t3) ?? false ? (string)t3 : "";
+            string alignment = includeAnchoringProperties ? $"\n\t\t\ttoken preliminary:anchoring:type = \"{anchoringType}\"\n\t\t\ttoken preliminary:planeAnchoring:alignment = \"{planeAnchoringAlignment}\"\n" : "";
             return $"def Xform \"Root\"\n{{\n\tdef Scope \"Scenes\" (\n\t\tkind = \"sceneLibrary\"\n\t)\n\t{{\n\t\tdef Xform \"Scene\" (\n\t\t\tcustomData = {{\n\t\t\t\tbool preliminary_collidesWithEnvironment = 0\n\t\t\t\tstring sceneName = \"Scene\"\n\t\t\t}}\n\t\t\tsceneName = \"Scene\"\n\t\t)\n\t\t{{{alignment}\n";
         }
 
-        public string BuildSceneEnd()
+        public static string BuildSceneEnd()
         {
-            return "\n\t\t}\n\t}\n}\n\n";
+            return "\n\t\t}\n\t}\n\n\n";
         }
 
-        public byte[] BuildUSDFileAsString(string dataToInsert)
+        public static byte[] BuildUSDFileAsString(string dataToInsert)
         {
             string output = BuildHeader() + dataToInsert;
-            return strToU8(output);
+            return StrToU8(output);
         }
-        public string BuildXform(Object3D obj, Geometry geometry, Material material)
+        public static string BuildXform(Object3D obj, Geometry geometry, Material material)
         {
             string name = "Object_" + obj.Id;
             string transform = BuildMatrix(obj.MatrixWorld);
@@ -184,15 +184,15 @@ namespace THREEToUsdz
                 Console.WriteLine("THREE.USDZExporter: USDZ does not support negative scales", obj);
             }
 
-            return $"def Xform \"{name}\" (\n" +
-                   $"    prepend references = @./geometries/Geometry_{geometry.id}.usda@</Geometry>\n" +
-                   $"    prepend apiSchemas = [\"MaterialBindingAPI\"]\n" +
-                   ")\n" +
-                   "{\n" +
-                   $"    matrix4d xformOp:transform = {transform}\n" +
-                   "    uniform token[] xformOpOrder = [\"xformOp:transform\"]\n" +
-                   "    rel material:binding = </Materials/Material_{material.id}>\n" +
-                   "}\n";
+            return $"\t\t\tdef Xform \"{name}\" (\n" +
+                   $"\t\t\t\tprepend references = @./geometries/Geometry_{geometry.Id}.usda@</Geometry>\n" +
+                   $"\t\t\t\tprepend apiSchemas = [\"MaterialBindingAPI\"]\n" +
+                   "\t\t\t)\n" +
+                   "\t\t\t{\n" +
+                   $"\t\t\t\tmatrix4d xformOp:transform = {transform}\n" +
+                   "\t\t\t\tuniform token[] xformOpOrder = [\"xformOp:transform\"]\n" +
+                   (material==null? "\t\t\t\t" : $"\t\t\t\trel material:binding = </Materials/Material_{material.Id}>\n") +
+                   "\t\t\t}\n";
         }
 
         public static string BuildMatrix(Matrix4 matrix)
@@ -218,70 +218,57 @@ def ""Geometry""
 ";
         }
 
-        public static string BuildMesh(BufferGeometry geometry)
+        public static string BuildMesh(Geometry geometry)
         {
             string name = "Geometry";
-            int count = geometry.Attributes.Count;
+
+
+
 
             return $@"
     def Mesh ""{name}""
     {{
         int[] faceVertexCounts = [{BuildMeshVertexCount(geometry)}]
         int[] faceVertexIndices = [{BuildMeshVertexIndices(geometry)}]
-        normal3f[] normals = [{BuildVector3Array(attributes.Normal, count)}] (
+        normal3f[] normals = [{BuildVector3Array(geometry.Normals)}] (
             interpolation = ""vertex""
         )
-        point3f[] points = [{BuildVector3Array(attributes.Position, count)}]
-{BuildPrimvars(attributes)}
+        point3f[] points = [{BuildVector3Array(geometry.Vertices)}]
+{BuildPrimvars(null)}
         uniform token subdivisionScheme = ""none""
     }}
 ";
         }
 
-        private static string BuildMeshVertexCount(BufferGeometry geometry)
+        private static string BuildMeshVertexCount(Geometry geometry)
         {
-            int count = geometry.Index != null ? geometry.Index.Count : geometry.Attributes.Position.Count;
-            return string.Join(", ", Enumerable.Repeat(3, count / 3));
+            int count = geometry.Faces.Count;
+            return string.Join(", ", geometry.Faces.Select(o=>3));
         }
 
-        private static string BuildMeshVertexIndices(BufferGeometry geometry)
+        private static string BuildMeshVertexIndices(Geometry geometry)
         {
-            var index = geometry.Index;
-            var array = new List<int>();
 
-            if (index != null)
-            {
-                for (int i = 0; i < index.Count; i++)
-                {
-                    array.Add(index.getX(i));
-                }
-            }
-            else
-            {
-                int length = geometry.Attributes.Position.Count;
-                for (int i = 0; i < length; i++)
-                {
-                    array.Add(i);
-                }
-            }
-
-            return string.Join(", ", array);
+            return string.Join(", ", geometry.Faces.SelectMany(o => new[] {o.a,o.b,o.c}));
         }
 
-        private static string BuildVector3Array(attribute, count)
+
+        private const int PRECISION = 5;
+        private static string BuildVector3Array(List<Vector3> attribute)
         {
             if (attribute == null)
             {
                 Console.WriteLine("USDZExporter: Normals missing.");
-                return string.Join(", ", Enumerable.Repeat("(0, 0, 0)", count));
+                return string.Join(", ", Enumerable.Repeat("(0, 0, 0)", attribute.Count));
             }
 
             var array = new List<string>();
             for (int i = 0; i < attribute.Count; i++)
             {
-                double x = attribute.GetX(i);
-                double y = attribute.GetY(i);
-                double z = attribute.GetZ(i);
+                var pos= attribute[i];
+                double x = pos.X;
+                double y = pos.Y;
+                double z = pos.Z;
 
                 array.Add($"({x.ToString("F" + PRECISION)}, {y.ToString("F" + PRECISION)}, {z.ToString("F" + PRECISION)})");
             }
@@ -335,6 +322,11 @@ def ""Geometry""
         //     }
         //
 
+        private static string BuildPrimvars(object attributes)
+        {
+            return "";
+        }
+
         public static string BuildMaterials(Dictionary<int, Material> materials, Dictionary<int, Texture> textures, bool quickLookCompatible = false)
         {
             List<string> array = new List<string>();
@@ -345,7 +337,7 @@ def ""Geometry""
                 array.Add(BuildMaterial(material, textures, quickLookCompatible));
             }
 
-            return $"def \"Materials\"\n{{\n{string.Join("", array)}\n}}\n";
+            return $"\tdef \"Materials\"\n\t{{\n{string.Join("", array)}\t\n\t}}\n";
         }
 
 
@@ -431,39 +423,39 @@ def ""Geometry""
                 }
 
                 return $@"
-def Shader ""PrimvarReader_{mapType}""
-{{
-    uniform token info:id = ""UsdPrimvarReader_float2""
-    float2 inputs:fallback = (0.0, 0.0)
-    token inputs:varname = ""{uv}""
-    float2 outputs:result
-}}
-
-def Shader ""Transform2d_{mapType}""
-{{
-    uniform token info:id = ""UsdTransform2d""
-    token inputs:in.connect = </Materials/Material_{material.Id}/PrimvarReader_{mapType}.outputs:result>
-    float inputs:rotation = {(rotation * (180 / Math.PI)).ToString("F2")}
-    float2 inputs:scale = {BuildVector2(repeat)}
-    float2 inputs:translation = {BuildVector2(offset)}
-    float2 outputs:result
-}}
-
-def Shader ""Texture_{texture.Id}_{mapType}""
-{{
-    uniform token info:id = ""UsdUVTexture""
-    asset inputs:file = @textures/Texture_{id}.png@
-    float2 inputs:st.connect = </Materials/Material_{material.Id}/Transform2d_{mapType}.outputs:result>
-    {(color != null ? "float4 inputs:scale = " + BuildColor4(color.Value) : "")}
-    token inputs:sourceColorSpace = ""{(texture.Image.ColorSpace.IsSrgb ? "sRGB" : "raw")}""
-    token inputs:wrapS = ""{WRAPPINGS[texture.WrapS]}""
-    token inputs:wrapT = ""{WRAPPINGS[texture.WrapT]}""
-    float outputs:r
-    float outputs:g
-    float outputs:b
-    float3 outputs:rgb
-    {(material.Transparent || material.AlphaTest > 0.0 ? "float outputs:a" : "")}
-}}";
+			def Shader ""PrimvarReader_{mapType}""
+			{{
+			    uniform token info:id = ""UsdPrimvarReader_float2""
+			    float2 inputs:fallback = (0.0, 0.0)
+			    token inputs:varname = ""{uv}""
+			    float2 outputs:result
+			}}
+			
+			def Shader ""Transform2d_{mapType}""
+			{{
+			    uniform token info:id = ""UsdTransform2d""
+			    token inputs:in.connect = </Materials/Material_{material.Id}/PrimvarReader_{mapType}.outputs:result>
+			    float inputs:rotation = {(rotation * (180 / Math.PI)).ToString("F2")}
+			    float2 inputs:scale = {BuildVector2(repeat)}
+			    float2 inputs:translation = {BuildVector2(offset)}
+			    float2 outputs:result
+			}}
+			
+			def Shader ""Texture_{texture.Id}_{mapType}""
+			{{
+			    uniform token info:id = ""UsdUVTexture""
+			    asset inputs:file = @textures/Texture_{id}.png@
+			    float2 inputs:st.connect = </Materials/Material_{material.Id}/Transform2d_{mapType}.outputs:result>
+			    {(color != null ? "float4 inputs:scale = " + BuildColor4(color.Value) : "")}
+			    token inputs:sourceColorSpace = ""{(texture.Image.ColorSpace.IsSrgb ? "sRGB" : "raw")}""
+			    token inputs:wrapS = ""{WRAPPINGS[texture.WrapS]}""
+			    token inputs:wrapT = ""{WRAPPINGS[texture.WrapT]}""
+			    float outputs:r
+			    float outputs:g
+			    float outputs:b
+			    float3 outputs:rgb
+			    {(material.Transparent || material.AlphaTest > 0.0 ? "float outputs:a" : "")}
+			}}";
             }
 
 
@@ -554,21 +546,21 @@ def Shader ""Texture_{texture.Id}_{mapType}""
             // }
 
             return $@"
-	def Material ""Material_{material.Id}""
-	{{
-		def Shader ""PreviewSurface""
+		def Material ""Material_{material.Id}""
 		{{
-			uniform token info:id = ""UsdPreviewSurface""
-{string.Join("\n", inputs)}
-			int inputs:useSpecularWorkflow = 0
-			token outputs:surface
+			def Shader ""PreviewSurface""
+			{{
+				uniform token info:id = ""UsdPreviewSurface""
+				{string.Join("\n", inputs)}
+				int inputs:useSpecularWorkflow = 0
+				token outputs:surface
+			}}
+			
+			token outputs:surface.connect = </Materials/Material_{material.Id}/PreviewSurface.outputs:surface>
+			
+			{string.Join("\n", samplers)}
+		
 		}}
-
-		token outputs:surface.connect = </Materials/Material_{material.Id}/PreviewSurface.outputs:surface>
-
-{string.Join("\n", samplers)}
-
-	}}
 ";
         }
 
