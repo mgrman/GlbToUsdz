@@ -47,27 +47,27 @@ namespace THREEToUsdz
                 {
                     var geometry = mesh.Geometry;
                     var material = mesh.Material;
-                   //  if (material is MeshStandardMaterial || material is MeshLambertMaterial)
+                    //  if (material is MeshStandardMaterial || material is MeshLambertMaterial)
                     //{
-                        var geometryFileName = "geometries/Geometry_" + geometry.Id + ".usda";
+                    var geometryFileName = "geometries/Geometry_" + geometry.Id + ".usda";
 
-                        if (!files.ContainsKey(geometryFileName))
-                        {
-                            var meshObject = BuildMeshObject(geometry);
-                            files[geometryFileName] = BuildUSDFileAsString(meshObject);
-                        }
+                    if (!files.ContainsKey(geometryFileName))
+                    {
+                        var meshObject = BuildMeshObject(geometry);
+                        files[geometryFileName] = BuildUSDFileAsString(meshObject);
+                    }
 
-                        if (!materials.ContainsKey(material.Id))
-                        {
-                            materials[material.Id] = material;
-                        }
+                    if (!materials.ContainsKey(material.Id))
+                    {
+                        materials[material.Id] = material;
+                    }
 
-                        output += BuildXform(object3D, geometry, material);
-                   // }
-                   // else
-                   // {
+                    output += BuildXform(object3D, geometry, material);
+                    // }
+                    // else
+                    // {
                     //    Console.WriteLine("THREE.USDZExporter: Unsupported material type (USDZ only supports MeshStandardMaterial)");
-                   //     Console.WriteLine(object3D);
+                    //     Console.WriteLine(object3D);
                     //}
                 }
                 // else if (object3D is Camera camera)
@@ -78,7 +78,7 @@ namespace THREEToUsdz
 
             output += BuildSceneEnd();
 
-            output += BuildMaterials(materials, textures, options?.TryGetValue("quickLookCompatible", out var quickLookCompatible) ?? false ? (bool)quickLookCompatible:false);
+            output += BuildMaterials(materials, textures, options?.TryGetValue("quickLookCompatible", out var quickLookCompatible) ?? false ? (bool)quickLookCompatible : false);
             output += "\n}";
             files[modelFileName] = StrToU8(output);
             output = null;
@@ -132,14 +132,14 @@ namespace THREEToUsdz
 
         private static byte[] ZipSync(Dictionary<string, byte[]> files, int level)
         {
-           using  var ms=new MemoryStream();
-            using var archive = new ZipArchive(ms,ZipArchiveMode.Create);
+            using var ms = new MemoryStream();
+            using var archive = new ZipArchive(ms, ZipArchiveMode.Create);
 
             foreach (var item in files)
             {
 
-                 var entry =archive.CreateEntry(item.Key);
-               using var entryStream=entry.Open();
+                var entry = archive.CreateEntry(item.Key);
+                using var entryStream = entry.Open();
 
                 entryStream.Write(item.Value);
 
@@ -156,7 +156,7 @@ namespace THREEToUsdz
 
         public static string BuildSceneStart(Dictionary<string, object>? options)
         {
-            bool includeAnchoringProperties = options?.TryGetValue("includeAnchoringProperties", out var t1)??false ? (bool)t1 : false;
+            bool includeAnchoringProperties = options?.TryGetValue("includeAnchoringProperties", out var t1) ?? false ? (bool)t1 : false;
 
             string anchoringType = "plane";// options?.anchoring?.type.TryGetValue("includeAnchoringProperties", out var t2) ?? false ? (string)t2 : "";
             string planeAnchoringAlignment = "horizontal";// options?.TryGetValue("includeAnchoringProperties", out var t3) ?? false ? (string)t3 : "";
@@ -191,7 +191,7 @@ namespace THREEToUsdz
                    "\t\t\t{\n" +
                    $"\t\t\t\tmatrix4d xformOp:transform = {transform}\n" +
                    "\t\t\t\tuniform token[] xformOpOrder = [\"xformOp:transform\"]\n" +
-                   (material==null? "\t\t\t\t" : $"\t\t\t\trel material:binding = </Materials/Material_{material.Id}>\n") +
+                   (material == null ? "\t\t\t\t" : $"\t\t\t\trel material:binding = </Materials/Material_{material.Id}>\n") +
                    "\t\t\t}\n";
         }
 
@@ -243,13 +243,13 @@ def ""Geometry""
         private static string BuildMeshVertexCount(Geometry geometry)
         {
             int count = geometry.Faces.Count;
-            return string.Join(", ", geometry.Faces.Select(o=>3));
+            return string.Join(", ", geometry.Faces.Select(o => 3));
         }
 
         private static string BuildMeshVertexIndices(Geometry geometry)
         {
 
-            return string.Join(", ", geometry.Faces.SelectMany(o => new[] {o.a,o.b,o.c}));
+            return string.Join(", ", geometry.Faces.SelectMany(o => new[] { o.a, o.b, o.c }));
         }
 
 
@@ -265,7 +265,7 @@ def ""Geometry""
             var array = new List<string>();
             for (int i = 0; i < attribute.Count; i++)
             {
-                var pos= attribute[i];
+                var pos = attribute[i];
                 double x = pos.X;
                 double y = pos.Y;
                 double z = pos.Z;
