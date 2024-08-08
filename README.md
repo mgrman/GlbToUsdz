@@ -8,7 +8,6 @@ Only very limited feature set is supported:
   - Normals
 - Diffuse Channel of Materials
   - Textures
-	- 
 - only usda files are created which are then wrapped into usdz archive
 
 
