@@ -10,7 +10,7 @@ using System.Text;
 // gltf samples https://github.com/KhronosGroup/glTF-Sample-Models/
 // usdz samples https://developer.apple.com/augmented-reality/quick-look/
 
-
+// usd spec https://openusd.org/release/spec_usdpreviewsurface.html
 public static class GlbToUsdzConverter
 {
     public static byte[] ConvertToUsdz(ModelRoot modelRoot)
