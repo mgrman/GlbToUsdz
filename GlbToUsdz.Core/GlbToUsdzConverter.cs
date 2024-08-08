@@ -2,6 +2,7 @@
 using SharpGLTF.Schema2;
 using System.Globalization;
 using System.IO.Compression;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 
@@ -19,22 +20,37 @@ public static class GlbToUsdzConverter
         using var ms = new MemoryStream();
         using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, true))
         {
-            var entry = archive.CreateEntry("model.usda", CompressionLevel.NoCompression);
-            using var entryStream = entry.Open();
+            {
+                var entry = archive.CreateEntry("model.usda", CompressionLevel.NoCompression);
+                using (var entryStream = entry.Open())
+                {
+                    using var writer = new StreamWriter(entryStream);
+                    writer.Write(usda.usda);
+                }
+            }
 
-            using var writer = new StreamWriter(entryStream);
-            writer.Write(usda);
+            foreach (var item in usda.textures)
+            {
+                var textureEntry = archive.CreateEntry($"textures/{item.Key}", CompressionLevel.NoCompression);
+                using (var entryStream = textureEntry.Open())
+                {
+                    entryStream.Write(item.Value);
+                }
+            }
         }
 
         return ms.ToArray();
     }
 
-    public static string ConvertToUsda(ModelRoot model)
+    public static (string usda, Dictionary<string,byte[]> textures) ConvertToUsda(ModelRoot model)
     {
         var oldCultureInfo = CultureInfo.CurrentCulture;
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+
+            var textures=new Dictionary<string, byte[]>();
+
             var rootNoted = model.DefaultScene.VisualChildren;
 
             var sb = new StringBuilder();
@@ -56,77 +72,162 @@ public static class GlbToUsdzConverter
 
                                 var indices = primitive.GetIndices();
 
-                                var vertices = primitive.GetVertices("POSITION");
-                                var normals = primitive.GetVertices("NORMAL");
-                                var uvs_0 = primitive.GetVertices("TEXCOORD_0");
+
+                                var vertices = primitive.VertexAccessors.ContainsKey("POSITION")? primitive.GetVertices("POSITION"):null;
+                                var normals = primitive.VertexAccessors.ContainsKey("NORMAL") ? primitive.GetVertices("NORMAL") : null;
+                                var uvs_0 = primitive.VertexAccessors.ContainsKey("TEXCOORD_0") ? primitive.GetVertices("TEXCOORD_0") : null;
 
                                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
-                                sb.AppendLine($"");
-                                sb.AppendLine($"def Xform \"root\"");
-                                sb.AppendLine($"{{");
-                                sb.AppendLine($"    double3 xformOp:rotateXYZ = {rotation.X:F3}, {rotation.Y:F3}, {rotation.Z:F3})");
+                                sb.AppendLine($"    double3 xformOp:rotateXYZ = {rotation.ToXYZUsdString()}");
                                 sb.AppendLine($"    double3 xformOp:scale = {scale.ToUsdString()}");
                                 sb.AppendLine($"    double3 xformOp:translate = {translation.ToUsdString()}");
                                 sb.AppendLine($"    uniform token[] xformOpOrder = [\"xformOp:translate\", \"xformOp:rotateXYZ\", \"xformOp:scale\"]");
                                 sb.AppendLine($"");
-                                sb.AppendLine($"    def Mesh \"quad\"");
+                                sb.AppendLine($"    def Mesh \"mesh_{node.LogicalIndex}\"");
                                 sb.AppendLine($"    {{");
-                                sb.AppendLine($"        point3f[] points = [{string.Join(",", vertices.AsVector3Array().Select(ToUsdString))}]");
-                                sb.AppendLine($"        point3f[] normals  = [{string.Join(",", normals.AsVector3Array().Select(ToUsdString))}]");
-                                sb.AppendLine($"        int[] faceVertexIndices = [{string.Join(", ", indices)}]");
-                                sb.AppendLine($"        int[] faceVertexCounts = [{string.Join(", ", Enumerable.Repeat(3, indices.Count / 3))}]");
+                                sb.AppendLine($"        point3f[] points = {vertices.AsVector3Array().ToUsdString()}");
+                                if (normals != null)
+                                {
+                                    sb.AppendLine($"        normal3f[] normals  = {normals.AsVector3Array().ToUsdString()} (");
+                                    sb.AppendLine($"            interpolation = \"vertex\"");
+                                    sb.AppendLine($"        )");
+                                }
+                                sb.AppendLine($"        int[] faceVertexIndices = {indices.ToUsdString()}");
+                                sb.AppendLine($"        int[] faceVertexCounts = {Enumerable.Repeat((uint)3, indices.Count / 3).ToUsdString()}");
+                                if (uvs_0 != null)
+                                {
+                                    sb.AppendLine($"        texCoord2f[] primvars:st = { uvs_0.AsVector2Array().Select(o => new Vector2(o.X, 1 - o.Y)).ToUsdString()} (");
+                                    sb.AppendLine($"            interpolation = \"vertex\"");
+                                    sb.AppendLine($"        )");
+                                }
+                                if (primitive.Material != null)
+                                {
+                                    sb.AppendLine($"        rel material:binding = </mat_{primitive.Material.LogicalIndex}>");
+                                }
                                 sb.AppendLine($"    }}");
-                                sb.AppendLine($"}}");
                             }
                         }
                     }
                 }
 
 
-
                 foreach (var child in visualNode.VisualChildren)
                 {
                     ProcessScene(child);
                 }
-
             }
 
 
             void ProcessMaterial(Material material)
             {
-                sb.AppendLine($@"def Material ""{material.Name}""
-    {{
-        token inputs:frame:stPrimvarName = ""st""
-        token outputs:surface.connect = </Root/{material.Name}/PBRShader.outputs:surface>
+                var diffuseChannel = material.Channels.FirstOrDefault(o => o.Key == "BaseColor");
 
-        def Shader ""PBRShader""
-        {{
-            uniform token info:id = ""UsdPreviewSurface""
-            color3f inputs:diffuseColor = (1.0, 0.4, 0.2)
-            float inputs:metallic = 0
-            float inputs:roughness = 0.5
-            token outputs:surface
-        }}
-    }}");
+                var texture = diffuseChannel.Texture;
+
+                var matName = $"mat_{material.LogicalIndex}";
+
+                sb.AppendLine($"def Material \"{matName}\"");
+                sb.AppendLine($"{{");
+                sb.AppendLine($"    token inputs:frame:stPrimvarName = \"st\"");
+                sb.AppendLine($"    token outputs:surface.connect = </{matName}/PBRShader.outputs:surface>");
+                sb.AppendLine($"");
+                sb.AppendLine($"    def Shader \"PBRShader\"");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        uniform token info:id = \"UsdPreviewSurface\"");
+                sb.AppendLine($"        color3f inputs:diffuseColor = {diffuseChannel.Color.ToXYZUsdString()}");
+                if (texture != null)
+                {
+                    sb.AppendLine($"        color3f inputs:diffuseColor.connect = </{matName}/diffuseTexture.outputs:rgb>");
+                }
+                sb.AppendLine($"        float inputs:metallic = 0");
+                sb.AppendLine($"        float inputs:roughness = 1");
+                sb.AppendLine($"        token outputs:surface");
+                sb.AppendLine($"    }}");
+                if (texture != null)
+                {
+                    var content = texture.PrimaryImage.Content;
+                    var textureName = $"{diffuseChannel.Texture.LogicalIndex}.{content.FileExtension}";
+                    textures[textureName] = content.Content.ToArray();
+                    sb.AppendLine($"");
+                    sb.AppendLine($"    def Shader \"stReader\"");
+                    sb.AppendLine($"    {{");
+                    sb.AppendLine($"        uniform token info:id = \"UsdPrimvarReader_float2\"");
+                    sb.AppendLine($"        token inputs:varname.connect = </{matName}.inputs:frame:stPrimvarName>");
+                    sb.AppendLine($"        float2 outputs:result");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"");
+                    sb.AppendLine($"    def Shader \"diffuseTexture\"");
+                    sb.AppendLine($"    {{");
+                    sb.AppendLine($"        uniform token info:id = \"UsdUVTexture\"");
+                    sb.AppendLine($"        asset inputs:file = @textures/{textureName}@");
+                    sb.AppendLine($"        token inputs:sourceColorSpace = \"raw\"");
+                    sb.AppendLine($"        token inputs:st.connect = </{matName}/stReader.outputs:result>");
+                    sb.AppendLine($"        token inputs:wrapS = \"repeat\"");
+                    sb.AppendLine($"        token inputs:wrapT = \"repeat\"");
+                    sb.AppendLine($"        float3 outputs:rgb");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"");
+                }
+                sb.AppendLine($"}}");
 
             }
 
 
+            sb.AppendLine($"");
+            sb.AppendLine($"def Xform \"root\"");
+            sb.AppendLine($"{{");
             ProcessScene(model.DefaultScene);
+            sb.AppendLine($"}}");
+
             foreach (var material in model.LogicalMaterials)
             {
                 ProcessMaterial(material);
             }
 
-            return sb.ToString();
+            return (sb.ToString(), textures);
         }
         finally
         {
             CultureInfo.CurrentCulture = oldCultureInfo;
         }
     }
+    private static string ToUsdString(this IEnumerable<Vector3> vertices) => $"[{string.Join(",", vertices.Select(ToUsdString))}]";
+    private static string ToUsdString(this IEnumerable<Vector2> vertices) => $"[{string.Join(",", vertices.Select(ToUsdString))}]";
+    private static string ToUsdString(this IEnumerable<uint> indices) => $"[{string.Join(", ", indices)}]";
 
-    private static string ToUsdString(this Vector3 p) => $"({p.X:F3}, {p.Y:F3}, {p.Z:F3})";
+    private static string ToUsdString(this Vector3 p) => $"({p.X:F7}, {p.Y:F7}, {p.Z:F7})";
+    private static string ToUsdString(this Vector2 p) => $"({p.X:F7}, {p.Y:F7})";
+    private static string ToXYZUsdString(this Vector4 p) => $"({p.X:F7}, {p.Y:F7}, {p.Z:F7})";
+    private static string ToXYZUsdString(this Quaternion p) => p.ToEulerAngles().ToUsdString();
+
+
+    private static Vector3 ToEulerAngles(this Quaternion q)
+    {
+        Vector3 angles = new();
+
+        // roll / x
+        double sinr_cosp = 2 * (q.W * q.X + q.Y * q.Z);
+        double cosr_cosp = 1 - 2 * (q.X * q.X + q.Y * q.Y);
+        angles.X = (float)Math.Atan2(sinr_cosp, cosr_cosp);
+
+        // pitch / y
+        double sinp = 2 * (q.W * q.Y - q.Z * q.X);
+        if (Math.Abs(sinp) >= 1)
+        {
+            angles.Y = (float)Math.CopySign(Math.PI / 2, sinp);
+        }
+        else
+        {
+            angles.Y = (float)Math.Asin(sinp);
+        }
+
+        // yaw / z
+        double siny_cosp = 2 * (q.W * q.Z + q.X * q.Y);
+        double cosy_cosp = 1 - 2 * (q.Y * q.Y + q.Z * q.Z);
+        angles.Z = (float)Math.Atan2(siny_cosp, cosy_cosp);
+
+        return angles;
+    }
 
 }
