@@ -396,3 +396,11 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+
+/TestData
+/TestData/**/*
+
+
+/usd.py310.windows-x86_64
+/usd.py310.windows-x86_64/**/*
