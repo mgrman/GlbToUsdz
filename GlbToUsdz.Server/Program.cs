@@ -5,6 +5,10 @@ using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add detection services container and device resolver service.
+builder.Services.AddDetection();
+builder.Services.AddHttpContextAccessor();
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -17,18 +21,19 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
-app.MapGet("/usdz/{file}", async (HttpContext context, [FromRoute]string file) =>
+app.UseDetection();
+app.MapGet("/fromGlb/{file}", async (HttpContext context, [FromRoute]string file) =>
 {
     var fileProvider = context.RequestServices.GetService<IFileProvider>();
 
-    var glbPath = Path.Combine(app.Environment.WebRootPath, file);
+    var glbPath = Path.Combine(app.Environment.WebRootPath, Path.ChangeExtension(file,".glb"));
 
     var model = SharpGLTF.Schema2.ModelRoot.Load(glbPath);
 
     var usdz=GlbToUsdzConverter.ConvertToUsdz(model);
 
-    context.Response.Headers.ContentDisposition= $"attachment; filename=\"{Path.GetFileNameWithoutExtension(file)}.usdz\"";
-    context.Response.Headers.ContentType = "model/vnd.usdz+zip";
+    //context.Response.Headers.ContentDisposition= $"attachment; filename=\"{file}\"";
+    context.Response.Headers.ContentType = "model/usd";
     await context.Response.Body.WriteAsync(usdz);
 
 });

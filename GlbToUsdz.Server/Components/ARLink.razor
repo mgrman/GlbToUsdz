@@ -1,0 +1,40 @@
+﻿@using Wangkanai.Detection.Services
+@using Wangkanai.Detection.Models
+@inject IDetectionService detectionService
+@inject IHttpContextAccessor httpContextAccessor
+<br/>
+
+@if (IsIos)
+{
+    <a rel="ar" href="fromGlb/@(Model).usdz">Show @(Model)</a>
+}
+else if (IsAndroid)
+{
+    <a href="intent://arvr.google.com/scene-viewer/1.0?file=@(GetBaseUrl($"{Model}.glb"))#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=https://developers.google.com/ar;end;">Show @(Model)</a>
+}
+else
+{
+    <a href="@(GetBaseUrl($"{Model}.glb"))">Download @(Model) (AR Supported only on Mobile devices)</a>
+}
+
+
+@code {
+
+    [Parameter]
+    public string Model { get; set; }
+
+    
+    private bool IsIos => detectionService.Platform.Name == Platform.iOS;
+    private bool IsAndroid => detectionService.Platform.Name == Platform.Android;
+
+    public string GetBaseUrl(string path)
+    {
+        var request = httpContextAccessor.HttpContext.Request;
+
+        var host = request.Host.ToUriComponent();
+
+        var pathBase = request.PathBase.ToUriComponent();
+
+        return $"{request.Scheme}://{host}{pathBase}/{path}";
+    }
+}

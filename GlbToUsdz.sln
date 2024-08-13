@@ -5,15 +5,16 @@ VisualStudioVersion = 17.11.35111.106
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GlbToUsdz.Core", "GlbToUsdz.Core\GlbToUsdz.Core.csproj", "{58897337-3287-42DE-B692-771C2282FADB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GlbToUsdz.Server", "GlbToUsdz.Server\GlbToUsdz.Server.csproj", "{CC49648D-55BA-45D7-9E02-B90A3E01C82D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GlbToUsdz.Server", "GlbToUsdz.Server\GlbToUsdz.Server.csproj", "{CC49648D-55BA-45D7-9E02-B90A3E01C82D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GlbToUsdz.Console", "GlbToUsdz.Console\GlbToUsdz.Console.csproj", "{0819F910-3273-4461-A951-0558A466890F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GlbToUsdz.Console", "GlbToUsdz.Console\GlbToUsdz.Console.csproj", "{0819F910-3273-4461-A951-0558A466890F}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{00AB73D4-18C4-44F2-8F55-EB60447AF7AC}"
 	ProjectSection(SolutionItems) = preProject
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
 		LICENSE = LICENSE
+		.github\workflows\main_glbtousdz.yml = .github\workflows\main_glbtousdz.yml
 		README.md = README.md
 	EndProjectSection
 EndProject

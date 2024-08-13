@@ -20,4 +20,8 @@
     <ProjectReference Include="..\GlbToUsdz.Core\GlbToUsdz.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Wangkanai.Detection" Version="8.14.0" />
+  </ItemGroup>
+
 </Project>
