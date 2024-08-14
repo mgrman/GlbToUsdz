@@ -21,14 +21,19 @@ else
 @code {
 
     [Parameter]
-    public string Model { get; set; }
+    public required string Model { get; set; }
 
-    
+
     private bool IsIos => detectionService.Platform.Name == Platform.iOS;
     private bool IsAndroid => detectionService.Platform.Name == Platform.Android;
 
     public string GetBaseUrl(string path)
     {
+        if (httpContextAccessor.HttpContext == null)
+        {
+            return $"/{path}";
+        }
+
         var request = httpContextAccessor.HttpContext.Request;
 
         var host = request.Host.ToUriComponent();

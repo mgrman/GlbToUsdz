@@ -58,7 +58,6 @@ public static class GlbToUsdzConverter
 
             void ProcessScene(IVisualNodeContainer visualNode)
             {
-
                 if (visualNode is Node node)
                 {
                     if (node.Mesh != null)
@@ -67,13 +66,13 @@ public static class GlbToUsdzConverter
                         {
                             if (primitive.DrawPrimitiveType == PrimitiveType.TRIANGLES)
                             {
-                                // TODO replace wiht scene tree, as this is only approximation and does not handle all cases, ie shear
+                                // TODO replace with scene tree, as this is only approximation and does not handle all cases, ie shear
                                 Matrix4x4.Decompose(node.WorldMatrix, out var scale, out var rotation, out var translation);
 
                                 var indices = primitive.GetIndices();
 
 
-                                var vertices = primitive.VertexAccessors.ContainsKey("POSITION")? primitive.GetVertices("POSITION"):null;
+                                var vertices = primitive.VertexAccessors.ContainsKey("POSITION")? primitive.GetVertices("POSITION") : null;
                                 var normals = primitive.VertexAccessors.ContainsKey("NORMAL") ? primitive.GetVertices("NORMAL") : null;
                                 var uvs_0 = primitive.VertexAccessors.ContainsKey("TEXCOORD_0") ? primitive.GetVertices("TEXCOORD_0") : null;
 
@@ -86,7 +85,10 @@ public static class GlbToUsdzConverter
                                 sb.AppendLine($"");
                                 sb.AppendLine($"    def Mesh \"mesh_{node.LogicalIndex}\"");
                                 sb.AppendLine($"    {{");
-                                sb.AppendLine($"        point3f[] points = {vertices.AsVector3Array().ToUsdString()}");
+                                if (vertices != null)
+                                {
+                                    sb.AppendLine($"        point3f[] points = {vertices.AsVector3Array().ToUsdString()}");
+                                }
                                 if (normals != null)
                                 {
                                     sb.AppendLine($"        normal3f[] normals  = {normals.AsVector3Array().ToUsdString()} (");
@@ -215,7 +217,7 @@ public static class GlbToUsdzConverter
         double sinp = 2 * (q.W * q.Y - q.Z * q.X);
         if (Math.Abs(sinp) >= 1)
         {
-            angles.Y = (float)Math.CopySign(Math.PI / 2, sinp);
+            angles.Y = (float)CopySign(Math.PI / 2, sinp);
         }
         else
         {
@@ -228,6 +230,11 @@ public static class GlbToUsdzConverter
         angles.Z = (float)Math.Atan2(siny_cosp, cosy_cosp);
 
         return angles;
+    }
+
+    private static double CopySign(double value, double sign)
+    {
+        return Math.Abs(value) * Math.Sign(sign);
     }
 
 }
