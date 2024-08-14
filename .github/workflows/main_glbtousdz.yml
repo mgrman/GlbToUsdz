@@ -21,6 +21,7 @@ jobs:
           fetch-depth: 0                # fetch the whole repo history
      
       - run: echo "VERSION=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+        shell: bash
         id: version
       
       - name: Use the version
