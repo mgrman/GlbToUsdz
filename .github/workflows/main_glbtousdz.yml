@@ -9,8 +9,9 @@ on:
       - main
   workflow_dispatch:
 
+
 jobs:
-  build:
+  buildServer:
     runs-on: windows-latest
 
     steps:
@@ -33,9 +34,32 @@ jobs:
           name: .net-app
           path: "${{env.DOTNET_ROOT}}/myapp"
 
-  deploy:
+  buildNuget:
     runs-on: windows-latest
-    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: .net-app
+          path: "${{env.DOTNET_ROOT}}/myapp"
+ 
+      - run: dotnet pack "GlbToUsdz.Core/GlbToUsdz.Core.csproj" --configuration Release -o "${{env.DOTNET_ROOT}}/GlbToUsdz.Core.nupkg"
+      
+      - uses: actions/upload-artifact@v3
+        with:
+          name: nuget
+          path: ${{env.DOTNET_ROOT}}/GlbToUsdz.Core.nupkg
+
+  deployServer:
+    runs-on: windows-latest
+    needs: buildServer
     environment:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
@@ -62,4 +86,17 @@ jobs:
           app-name: 'glbtousdz'
           slot-name: 'Production'
           package: .
+
+  deployNuget:
+    runs-on: windows-latest
+    needs: buildNuget
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget
+      
+      - name: Publish NuGet package
+        run: dotnet nuget push "GlbToUsdz.Core.nupkg" --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json
           
