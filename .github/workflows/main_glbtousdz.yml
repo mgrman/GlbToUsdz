@@ -50,12 +50,12 @@ jobs:
           name: .net-app
           path: "${{env.DOTNET_ROOT}}/myapp"
  
-      - run: dotnet pack "GlbToUsdz.Core/GlbToUsdz.Core.csproj" --configuration Release -o "${{env.DOTNET_ROOT}}/GlbToUsdz.Core.nupkg"
+      - run: dotnet pack "GlbToUsdz.Core/GlbToUsdz.Core.csproj" --configuration Release -o "${{env.DOTNET_ROOT}}/nuget"
       
       - uses: actions/upload-artifact@v3
         with:
           name: nuget
-          path: ${{env.DOTNET_ROOT}}/GlbToUsdz.Core.nupkg
+          path: ${{env.DOTNET_ROOT}}/nuget/*.nupkg
 
   deployServer:
     runs-on: windows-latest
@@ -96,7 +96,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nuget
+          path: ${{ github.workspace}}/nuget
       
       - name: Publish NuGet package
-        run: dotnet nuget push "GlbToUsdz.Core.nupkg" --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json
+        run: |
+          foreach($file in (Get-ChildItem "${{ github.workspace}}/nuget" -Recurse -Include *.nupkg)) {
+              dotnet nuget push $file --api-key "${{ secrets.NUGET_APIKEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
           
