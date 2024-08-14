@@ -19,14 +19,13 @@ jobs:
         with:
           ref: ${{ github.head_ref }}   # checkout the correct branch name
           fetch-depth: 0                # fetch the whole repo history
-      
-      - name: Git Version
+     
+      - run: echo "VERSION=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
         id: version
-        uses: codacy/git-version@2.7.1
       
       - name: Use the version
         run: |
-          echo ${{ steps.version.outputs.version }}
+          echo ${{ steps.version.outputs.VERSION }}
 
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
