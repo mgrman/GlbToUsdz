@@ -52,7 +52,7 @@ jobs:
  
       - run: dotnet pack "GlbToUsdz.Core/GlbToUsdz.Core.csproj" --configuration Release -o "${{env.DOTNET_ROOT}}/nuget"
       
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: nuget
           path: ${{env.DOTNET_ROOT}}/nuget/*.nupkg
