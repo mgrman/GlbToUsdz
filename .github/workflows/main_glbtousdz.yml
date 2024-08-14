@@ -16,17 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}   # checkout the correct branch name
-          fetch-depth: 0                # fetch the whole repo history
-     
-      - run: echo "VERSION=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
-        shell: bash
-        id: version
-      
-      - name: Use the version
-        run: |
-          echo ${{ steps.version.outputs.VERSION }}
 
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
@@ -50,18 +39,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}   # checkout the correct branch name
+          fetch-depth: 0                # fetch the whole repo history
+     
+      - run: echo "VERSION=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+        shell: bash
+        id: version
+      
+      - name: Use the version
+        run: |
+          echo ${{ steps.version.outputs.VERSION }}
 
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.x'
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: .net-app
           path: "${{env.DOTNET_ROOT}}/myapp"
  
-      - run: dotnet pack "GlbToUsdz.Core/GlbToUsdz.Core.csproj" --configuration Release -o "${{env.DOTNET_ROOT}}/nuget"
+      - run: dotnet pack "GlbToUsdz.Core/GlbToUsdz.Core.csproj" -c Release -o "${{env.DOTNET_ROOT}}/nuget" -p:PackageVersion=0.1.${{ steps.version.outputs.VERSION }}-pre -p:AssemblyVersion=0.1.${{ steps.version.outputs.VERSION }} -p:FileVersion=0.1.${{ steps.version.outputs.VERSION }}
       
       - uses: actions/upload-artifact@v4
         with:
