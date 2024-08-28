@@ -6,15 +6,16 @@
 
 @if (IsIos)
 {
-    <a rel="ar" href="fromGlb/@(Model).usdz">Show @(Model)</a>
+    <a target="_top" rel="ar" href="fromGlb/@(Model).usdz">Show @(Model)</a>
 }
 else if (IsAndroid)
 {
-    <a href="intent://arvr.google.com/scene-viewer/1.0?file=@(GetBaseUrl($"{Model}.glb"))#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=https://developers.google.com/ar;end;">Show @(Model)</a>
+    <a target="_top" href="intent://arvr.google.com/scene-viewer/1.0?file=@(GetBaseUrl($"{Model}.glb"))#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=https://developers.google.com/ar;end;">Show @(Model)</a>
 }
 else
 {
-    <a href="@(GetBaseUrl($"{Model}.glb"))">Download @(Model) (AR Supported only on Mobile devices)</a>
+    <a target="_top" href="@(Model).glb">Download @(Model).glb (AR Supported only on Mobile devices)</a>
+    <a target="_top" href="fromGlb/@(Model).usdz">Download @(Model).usdz (AR Supported only on Mobile devices)</a>
 }
 
 
