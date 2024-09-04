@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Numerics;
 using GlbToUsdz.Core.Utils;
+using SharpGLTF.Scenes;
 
 // usda samples https://github.com/ft-lab/sample_usd/blob/main/readme.md
 // gltf samples https://github.com/KhronosGroup/glTF-Sample-Models/
@@ -15,9 +16,7 @@ namespace GlbToUsdz.Core;
 
 public class GlbToUsdzBuilder
 {
-    private readonly Dictionary<string, byte[]> textures = new Dictionary<string, byte[]>();
-
-    public List<(ModelRoot model, Matrix4x4 pose)> Models { get; private set; } = new List<(ModelRoot model, Matrix4x4 pose)>();
+    public List<(ModelRoot model, Matrix4x4 pose)> Models { get; } = new();
 
     public Matrix4x4 RootTransform { get; set; } = Matrix4x4.Identity;
 
@@ -28,7 +27,7 @@ public class GlbToUsdzBuilder
         var oldCultureInfo = CultureInfo.CurrentCulture;
         try
         {
-            textures.Clear();
+            var textures = new Dictionary<string, byte[]>();
 
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
@@ -38,7 +37,7 @@ public class GlbToUsdzBuilder
                 using (var entryStream = entry.Open())
                 {
                     using var writer = new StreamWriter(entryStream);
-                    await ConvertToUsda(writer);
+                    await ConvertToUsda(writer, textures);
                 }
 
                 foreach (var item in textures)
@@ -57,7 +56,26 @@ public class GlbToUsdzBuilder
         }
     }
 
-    private async ValueTask ConvertToUsda(StreamWriter sw)
+    public async ValueTask WriteGlbAsync(Stream stream)
+    {
+        var merged = new SceneBuilder();
+
+        var gltfScaleMatrix = Matrix4x4.CreateScale(0.01f);
+        
+        foreach (var sceneModel in Models)
+        {
+            var sceneBuilders = SceneBuilder.CreateFrom(sceneModel.model);
+            foreach (var sceneBuilder in sceneBuilders)
+            {
+                var mat = Matrix4x4.Multiply(sceneModel.pose, Matrix4x4.Multiply(RootTransform, gltfScaleMatrix));
+                merged.AddScene(sceneBuilder, mat);
+            }
+        }
+        
+        merged.ToGltf2().WriteGLB(stream);
+    }
+
+    private async ValueTask ConvertToUsda(StreamWriter sw, Dictionary<string, byte[]> textures)
     {
         await sw.WriteLineAsync("#usda 1.0");
         await sw.WriteLineAsync($"");
@@ -78,7 +96,7 @@ public class GlbToUsdzBuilder
             var model = Models[i];
             foreach (var material in model.model.LogicalMaterials)
             {
-                await ProcessMaterial(i, material, sw);
+                await ProcessMaterial(i, material, sw, textures);
             }
         }
     }
@@ -141,7 +159,7 @@ public class GlbToUsdzBuilder
         }
     }
 
-    async ValueTask ProcessMaterial(int modelIndex, Material material, StreamWriter sw)
+    async ValueTask ProcessMaterial(int modelIndex, Material material, StreamWriter sw, IDictionary<string, byte[]> textures)
     {
         var diffuseChannel = material.Channels.FirstOrDefault(o => o.Key == "BaseColor");
         var texture = diffuseChannel.Texture;

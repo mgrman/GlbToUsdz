@@ -396,7 +396,7 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-
+.idea
 
 /TestData
 /TestData/**/*
@@ -404,3 +404,4 @@ FodyWeavers.xsd
 
 /usd.py310.windows-x86_64
 /usd.py310.windows-x86_64/**/*
+GlbToUsdz.Console/Properties/launchSettings.json
