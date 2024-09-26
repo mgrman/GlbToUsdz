@@ -8,6 +8,7 @@ internal static class UsdzUtils
    internal static string ToUsdString(this IEnumerable<Vector2> vertices) => $"[{string.Join(",", vertices.Select(ToUsdString))}]";
     internal static string ToUsdString(this IEnumerable<uint> indices) => $"[{string.Join(", ", indices)}]";
 
+    internal static string ToXYZUsdString(this float? p) => $"{p:F7}";
     internal static string ToUsdString(this Vector3 p) => $"({p.X:F7}, {p.Y:F7}, {p.Z:F7})";
     internal static string ToUsdString(this Vector2 p) => $"({p.X:F7}, {p.Y:F7})";
     internal static string ToXYZUsdString(this Vector4 p) => $"({p.X:F7}, {p.Y:F7}, {p.Z:F7})";

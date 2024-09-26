@@ -78,6 +78,13 @@ public class GlbToUsdzBuilder
     private async ValueTask ConvertToUsda(StreamWriter sw, Dictionary<string, byte[]> textures)
     {
         await sw.WriteLineAsync("#usda 1.0");
+        await sw.WriteLineAsync("(");
+        await sw.WriteLineAsync("    customLayerData = {");
+        await sw.WriteLineAsync("        dictionary Apple = {");
+        await sw.WriteLineAsync("            int preferredIblVersion = 2");
+        await sw.WriteLineAsync("        }");
+        await sw.WriteLineAsync("    }");
+        await sw.WriteLineAsync($")");
         await sw.WriteLineAsync($"");
         await sw.WriteLineAsync($"def Xform \"root\"");
         await sw.WriteLineAsync($"{{");
@@ -165,6 +172,15 @@ public class GlbToUsdzBuilder
         var texture = diffuseChannel.Texture;
         var matName = GetMatName(modelIndex, material);
 
+        var metallicRoughnessChannel = material.Channels.FirstOrDefault(o => o.Key == "MetallicRoughness");
+
+        var metallic = (float?)metallicRoughnessChannel.Parameters.FirstOrDefault(o=>o.Name=="MetallicFactor")?.Value;
+        var roughness = (float?)metallicRoughnessChannel.Parameters.FirstOrDefault(o => o.Name == "RoughnessFactor")?.Value;
+
+        var clearcoatExtension = material.Extensions.FirstOrDefault(o=>o.GetType().Name== "MaterialClearCoat");
+        var clearCoatFactor = (float?)clearcoatExtension?.GetType()?.GetProperty("ClearCoatFactor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.GetValue(clearcoatExtension);
+        var clearcoatRoughnessFactor = (float?)clearcoatExtension?.GetType()?.GetProperty("RoughnessFactor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.GetValue(clearcoatExtension);
+
         await sw.WriteLineAsync($"def Material \"{matName}\"");
         await sw.WriteLineAsync($"{{");
         await sw.WriteLineAsync($"    token inputs:frame:stPrimvarName = \"st\"");
@@ -178,8 +194,22 @@ public class GlbToUsdzBuilder
         {
             await sw.WriteLineAsync($"        color3f inputs:diffuseColor.connect = </{matName}/diffuseTexture.outputs:rgb>");
         }
-        await sw.WriteLineAsync($"        float inputs:metallic = 0");
-        await sw.WriteLineAsync($"        float inputs:roughness = 1");
+        if (clearCoatFactor.HasValue)
+        {
+            await sw.WriteLineAsync($"        float inputs:clearcoat = {clearCoatFactor.ToXYZUsdString()}");
+        }
+        if (clearcoatRoughnessFactor.HasValue)
+        {
+            await sw.WriteLineAsync($"        float inputs:clearcoatRoughness = {clearcoatRoughnessFactor.ToXYZUsdString()}");
+        }
+        if (metallic.HasValue)
+        {
+            await sw.WriteLineAsync($"        float inputs:metallic = {metallic.ToXYZUsdString()}");
+        }
+        if (roughness.HasValue)
+        {
+            await sw.WriteLineAsync($"        float inputs:roughness = {roughness.ToXYZUsdString()}");
+        }
         await sw.WriteLineAsync($"        token outputs:surface");
         await sw.WriteLineAsync($"    }}");
         if (texture != null)
