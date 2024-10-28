@@ -114,8 +114,9 @@ public class GlbToUsdzBuilder
         {
             if (node.Mesh != null)
             {
-                foreach (var primitive in node.Mesh.Primitives)
+                for (var primitiveIndex = 0; primitiveIndex < node.Mesh.Primitives.Count; primitiveIndex++)
                 {
+                    var primitive = node.Mesh.Primitives[primitiveIndex];
                     if (primitive.DrawPrimitiveType == PrimitiveType.TRIANGLES)
                     {
                         var worldMat = Matrix4x4.Multiply(node.WorldMatrix, modelPose);
@@ -125,7 +126,7 @@ public class GlbToUsdzBuilder
                         var normals = primitive.VertexAccessors.ContainsKey("NORMAL") ? primitive.GetVertices("NORMAL") : null;
                         var uvs_0 = primitive.VertexAccessors.ContainsKey("TEXCOORD_0") ? primitive.GetVertices("TEXCOORD_0") : null;
 
-                        await sw.WriteLineAsync($"    def Mesh \"mesh_{modelIndex}_{node.LogicalIndex}\"");
+                        await sw.WriteLineAsync($"    def Mesh \"mesh_{modelIndex}_{node.LogicalIndex}_{primitiveIndex}\"");
                         await sw.WriteLineAsync($"    {{");
 
                         await sw.WriteLineAsync($"        matrix4d xformOp:transform = {worldMat.ToUsdString()}");
@@ -136,12 +137,14 @@ public class GlbToUsdzBuilder
                         {
                             await sw.WriteLineAsync($"        point3f[] points = {vertices.AsVector3Array().ToUsdString()}");
                         }
+
                         if (normals != null)
                         {
                             await sw.WriteLineAsync($"        normal3f[] normals  = {normals.AsVector3Array().ToUsdString()} (");
                             await sw.WriteLineAsync($"            interpolation = \"vertex\"");
                             await sw.WriteLineAsync($"        )");
                         }
+
                         await sw.WriteLineAsync($"        int[] faceVertexIndices = {indices.ToUsdString()}");
                         await sw.WriteLineAsync($"        int[] faceVertexCounts = {Enumerable.Repeat((uint)3, indices.Count / 3).ToUsdString()}");
                         if (uvs_0 != null)
@@ -150,10 +153,12 @@ public class GlbToUsdzBuilder
                             await sw.WriteLineAsync($"            interpolation = \"vertex\"");
                             await sw.WriteLineAsync($"        )");
                         }
+
                         if (primitive.Material != null)
                         {
                             await sw.WriteLineAsync($"        rel material:binding = </{GetMatName(modelIndex, primitive.Material)}>");
                         }
+
                         await sw.WriteLineAsync($"    }}");
                     }
                 }
